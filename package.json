@@ -24,12 +24,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/你的用户名/iflow-wechat-assistant.git"
+    "url": "https://github.com/wx7in8/iflow-wechat-assistant.git"
   },
   "bugs": {
-    "url": "https://github.com/你的用户名/iflow-wechat-assistant/issues"
+    "url": "https://github.com/wx7in8/iflow-wechat-assistant/issues"
   },
-  "homepage": "https://github.com/你的用户名/iflow-wechat-assistant#readme",
+  "homepage": "https://github.com/wx7in8/iflow-wechat-assistant#readme",
   "dependencies": {
     "axios": "^1.6.0",
     "crypto-js": "^4.2.0",
