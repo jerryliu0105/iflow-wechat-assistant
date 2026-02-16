@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import xml2js from 'xml2js';
 import { sendTextMessage, sendMarkdownMessage, getAccessToken } from './wechat.js';
-import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage } from './iflow.js';
+import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession } from './iflow.js';
 import { decryptMessage, verifySignature, encryptMessage, generateSignature } from './crypto.js';
 
 const app = express();
@@ -26,9 +26,26 @@ app.use('/wechat/callback', (req, res, next) => {
   next();
 });
 
-// 企业微信域名验证
-app.get('/WW_verify_4fuuqQa3qNKYD47B.txt', (req, res) => {
-  res.send('4fuuqQa3qNKYD47B');
+// 企业微信域名验证 - 精确匹配验证文件
+app.get(`/${process.env.WW_VERIFY_FILENAME}`, (req, res) => {
+  const content = process.env.WW_VERIFY_CONTENT;
+  if (content) {
+    console.log('[Verify] 域名验证请求:', req.path);
+    res.send(content);
+  } else {
+    res.status(404).send('验证文件未配置');
+  }
+});
+
+// 支持任意验证文件路径（兼容其他可能的验证文件名）
+app.get('/WW_verify_:id.txt', (req, res) => {
+  const content = process.env.WW_VERIFY_CONTENT;
+  if (content) {
+    console.log('[Verify] 域名验证请求:', req.path);
+    res.send(content);
+  } else {
+    res.status(404).send('验证文件未配置');
+  }
 });
 
 // 健康检查
@@ -143,6 +160,15 @@ async function processCommand(content) {
     
     case 'status':
       await sendMarkdownMessage(USER_ID, await getStatusMessage());
+      break;
+    
+    case 'new':
+      const newSessionResult = createNewSession();
+      await sendTextMessage(USER_ID, `✅ ${newSessionResult.message}`);
+      break;
+    
+    case 'sessions':
+      await sendMarkdownMessage(USER_ID, getSessionsMessage());
       break;
     
     case 'run':

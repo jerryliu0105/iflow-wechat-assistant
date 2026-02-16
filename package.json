@@ -1,18 +1,43 @@
 {
-  "name": "iflow-wechat-service",
+  "name": "iflow-wechat-assistant",
   "version": "1.0.0",
-  "description": "企业微信消息服务 - 控制iFlow CLI",
+  "description": "通过企业微信远程控制 iFlow CLI，支持连续对话，随时随地用手机操控 AI 编程助手",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "install:mac": "chmod +x install.sh && ./install.sh",
+    "install:win": "install.bat"
   },
+  "keywords": [
+    "iflow",
+    "wechat",
+    "enterprise-wechat",
+    "wechat-work",
+    "ai-assistant",
+    "remote-control",
+    "chatbot",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/你的用户名/iflow-wechat-assistant.git"
+  },
+  "bugs": {
+    "url": "https://github.com/你的用户名/iflow-wechat-assistant/issues"
+  },
+  "homepage": "https://github.com/你的用户名/iflow-wechat-assistant#readme",
   "dependencies": {
     "axios": "^1.6.0",
     "crypto-js": "^4.2.0",
     "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "xml2js": "^0.6.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }
