@@ -221,7 +221,7 @@ export function executeIFlowCommand(command, timeout = 120000, resume = true) {
     writeLog(`COMMAND: iflow ${args.join(' ')}`);
     
     const child = spawn('iflow', args, {
-      shell: false,
+      shell: true,
       timeout: timeout
     });
 

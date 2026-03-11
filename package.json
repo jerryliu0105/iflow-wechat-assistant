@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "start:feishu": "node src/feishu-index.js",
     "dev": "node --watch src/index.js",
+    "dev:feishu": "node --watch src/feishu-index.js",
     "install:mac": "chmod +x install.sh && ./install.sh",
     "install:win": "install.bat"
   },
@@ -31,6 +33,7 @@
   },
   "homepage": "https://github.com/wx7in8/iflow-wechat-assistant#readme",
   "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "axios": "^1.6.0",
     "crypto-js": "^4.2.0",
     "dotenv": "^17.3.1",
