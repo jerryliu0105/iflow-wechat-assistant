@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs';
-import { join, dirname } from 'path';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync, realpathSync } from 'fs';
+import { join, dirname, resolve, relative, sep } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 
@@ -11,6 +11,148 @@ const LOG_FILE = join(LOG_DIR, 'iflow.log');
 // iFlow session 存储路径
 const IFLOW_DIR = join(homedir(), '.iflow');
 const SESSION_DIR = join(IFLOW_DIR, 'projects', process.cwd().replace(/\//g, '-'));
+
+function parseBooleanEnv(value) {
+  if (value === undefined || value === null) return undefined;
+  const v = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y', 'on'].includes(v)) return true;
+  if (['0', 'false', 'no', 'n', 'off'].includes(v)) return false;
+  return undefined;
+}
+
+function getIflowExtraArgs() {
+  const extra = [];
+
+  const allFiles = parseBooleanEnv(process.env.IFLOW_ALL_FILES);
+  if (allFiles === true) {
+    extra.push('--all-files');
+  }
+
+  const sandbox = parseBooleanEnv(process.env.IFLOW_SANDBOX);
+  if (sandbox === true) {
+    extra.push('--sandbox');
+  } else if (sandbox === false) {
+    extra.push('--sandbox=false');
+  }
+
+  const yolo = parseBooleanEnv(process.env.IFLOW_YOLO);
+  if (yolo === true) {
+    extra.push('--yolo');
+  }
+
+  const includeDirsRaw = process.env.IFLOW_INCLUDE_DIRECTORIES;
+  if (includeDirsRaw) {
+    const includeDirs = includeDirsRaw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(',');
+    if (includeDirs) {
+      extra.push('--include-directories', includeDirs);
+    }
+  }
+
+  return extra;
+}
+
+function getPromptPrefix() {
+  return (
+    process.env.IFLOW_PROMPT_PREFIX ||
+    '继续当前任务，默认基于已有上下文直接执行，不要重复从头分析项目，除非我明确要求你先解释或重新审视项目。用户指令：'
+  );
+}
+
+function buildPrompt(command) {
+  const prefix = getPromptPrefix().trim();
+  if (!prefix) {
+    return command;
+  }
+  return `${prefix}\n${command}`;
+}
+
+function extractSessionId(output) {
+  if (!output) return null;
+  const match = output.match(/"session-id"\s*:\s*"session-([^"]+)"/i);
+  return match ? match[1] : null;
+}
+
+function markSessionActive(sessionId) {
+  if (!sessionId) return;
+  currentSessionId = sessionId;
+  sessionStartTime = new Date();
+}
+
+function getLocalAllowlist() {
+  const raw = process.env.IFLOW_LOCAL_ALLOWLIST || '';
+  const list = raw
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(p => resolve(p));
+  return list;
+}
+
+function isPathAllowed(targetPath, allowlist) {
+  if (!allowlist || allowlist.length === 0) return false;
+  const resolved = resolve(targetPath);
+  let realTarget = resolved;
+  try {
+    realTarget = realpathSync(resolved);
+  } catch (_) {
+    // ignore, keep resolved
+  }
+  return allowlist.some(base => {
+    const rel = relative(base, realTarget);
+    return rel === '' || (!rel.startsWith('..') && !rel.startsWith(`..${sep}`));
+  });
+}
+
+export function listLocalPath(pathArg = '.') {
+  const allowlist = getLocalAllowlist();
+  if (allowlist.length === 0) {
+    return {
+      success: false,
+      output: '未配置本地访问白名单，请设置 IFLOW_LOCAL_ALLOWLIST（逗号分隔的绝对路径）'
+    };
+  }
+
+  const target = resolve(pathArg);
+  if (!isPathAllowed(target, allowlist)) {
+    return {
+      success: false,
+      output: `路径未被允许访问：${target}\n请将路径加入 IFLOW_LOCAL_ALLOWLIST`
+    };
+  }
+
+  try {
+    const stat = statSync(target);
+    if (stat.isFile()) {
+      return { success: true, output: `文件: ${target} (${stat.size} bytes)` };
+    }
+
+    if (!stat.isDirectory()) {
+      return { success: false, output: `不支持的路径类型：${target}` };
+    }
+
+    const entries = readdirSync(target);
+    const max = 200;
+    const shown = entries.slice(0, max);
+    const lines = shown.map(name => {
+      const p = join(target, name);
+      try {
+        const s = statSync(p);
+        return s.isDirectory() ? `${name}/` : name;
+      } catch (_) {
+        return name;
+      }
+    });
+
+    const suffix = entries.length > max ? `\n... 共 ${entries.length} 项，仅显示前 ${max} 项` : '';
+    return { success: true, output: lines.join('\n') + suffix };
+  } catch (e) {
+    return { success: false, output: `读取失败：${e.message}` };
+  }
+}
 
 // 当前会话状态
 let currentSessionId = null;
@@ -200,22 +342,28 @@ export function executeIFlowCommand(command, timeout = 120000, resume = true) {
   return new Promise((resolve) => {
     // 构建参数
     const args = [];
+    args.push(...getIflowExtraArgs());
     
     // 如果启用恢复会话且当前没有指定 session，检查是否有可恢复的 session
     if (resume) {
+      if (currentSessionId) {
+        args.push('-r', currentSessionId);
+        console.log(`[iFlow] 恢复当前会话: ${currentSessionId}`);
+      } else {
       const latestSession = getLatestSession();
       if (latestSession) {
         args.push('-r', latestSession.id);
         console.log(`[iFlow] 恢复会话: ${latestSession.id}`);
         if (!currentSessionId) {
-          currentSessionId = latestSession.id;
+          markSessionActive(latestSession.id);
           sessionStartTime = latestSession.mtime;
         }
+      }
       }
     }
     
     // 添加命令
-    args.push('-p', command);
+    args.push('-p', buildPrompt(command));
     
     console.log(`[iFlow] 执行命令: iflow ${args.join(' ')}`);
     writeLog(`COMMAND: iflow ${args.join(' ')}`);
@@ -239,11 +387,15 @@ export function executeIFlowCommand(command, timeout = 120000, resume = true) {
     child.on('close', (code) => {
       const fullOutput = output + (errorOutput ? `\n${errorOutput}` : '');
       const cleanedOutput = cleanOutput(fullOutput);
-      
+      const sessionId = extractSessionId(fullOutput);
+      if (sessionId) {
+        markSessionActive(sessionId);
+      }
+
       // 写入完整输出到日志
       writeLog(`OUTPUT (exit code ${code}):\n${fullOutput}`);
       
-      if (code === 0) {
+      if (code === 0 || code === null) {
         console.log(`[iFlow] 命令执行成功`);
         resolve({
           success: true,
@@ -278,6 +430,8 @@ export function parseCommand(message) {
   // 支持的命令格式：
   // /run <命令>  - 执行 iFlow 命令
   // /new - 开始新会话
+  // /ls [path] - 列出本地文件/文件夹
+  // /menu - 显示快捷菜单（飞书）
   // /sessions - 查看历史会话
   // /help - 显示帮助
   // /status - 查看状态
@@ -291,6 +445,19 @@ export function parseCommand(message) {
   
   if (trimmed === '/new') {
     return { valid: true, type: 'new' };
+  }
+
+  if (trimmed === '/menu') {
+    return { valid: true, type: 'menu' };
+  }
+
+  if (trimmed === '/ls') {
+    return { valid: true, type: 'ls', path: '.' };
+  }
+
+  if (trimmed.startsWith('/ls ')) {
+    const p = trimmed.slice(4).trim();
+    return { valid: true, type: 'ls', path: p || '.' };
   }
   
   if (trimmed === '/sessions') {
@@ -324,6 +491,8 @@ export function getHelpMessage() {
 可用命令：
 - 直接发送消息：执行 iFlow 命令（自动恢复上次会话）
 - \`/run <命令>\`：执行 iFlow 命令
+- \`/menu\`：显示快捷菜单（飞书）
+- \`/ls [path]\`：列出本地路径内容（需配置白名单）
 - \`/new\`：开始新会话（清除上下文）
 - \`/sessions\`：查看历史会话
 - \`/status\`：查看服务状态

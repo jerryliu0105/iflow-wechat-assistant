@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import lark from '@larksuiteoapi/node-sdk';
-import { sendTextMessage, sendMarkdownMessage, getClient } from './feishu.js';
-import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession } from './iflow.js';
+import { sendTextMessage, sendMarkdownMessage, sendMenuCard, getClient } from './feishu.js';
+import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession, listLocalPath } from './iflow.js';
 
 // 飞书应用配置
 const APP_ID = process.env.FEISHU_APP_ID;
@@ -81,6 +81,47 @@ async function handleMessageEvent(data) {
 }
 
 /**
+ * 处理卡片按钮事件
+ * @param {object} data - 飞书卡片事件数据
+ */
+async function handleCardActionEvent(data) {
+  try {
+    const rawValue = data?.action?.value;
+    let valueObj = rawValue;
+    if (typeof rawValue === 'string') {
+      try {
+        valueObj = JSON.parse(rawValue);
+      } catch (_) {
+        valueObj = { cmd: rawValue };
+      }
+    }
+    const cmd = valueObj?.cmd || valueObj?.command;
+    if (!cmd) {
+      console.warn('[Card] 缺少 cmd，raw value:', rawValue);
+      return { code: 0 };
+    }
+
+    const openId =
+      data?.operator?.open_id ||
+      data?.user?.open_id ||
+      data?.action?.user_id?.open_id ||
+      data?.open_id ||
+      data?.context?.open_id;
+
+    if (!openId) {
+      console.error('[Card] 无法获取 open_id，data keys:', Object.keys(data || {}));
+      return { code: 0 };
+    }
+
+    await processCommand(cmd, openId);
+    return { code: 0 };
+  } catch (error) {
+    console.error('[Card] 处理卡片事件失败:', error.message);
+    return { code: 0 };
+  }
+}
+
+/**
  * 处理命令
  * @param {string} content - 用户发送的文本
  * @param {string} openId - 发送者的 open_id
@@ -109,6 +150,17 @@ async function processCommand(content, openId) {
 
     case 'sessions':
       await sendMarkdownMessage(openId, getSessionsMessage());
+      break;
+    
+    case 'menu':
+      await sendMenuCard(openId);
+      break;
+
+    case 'ls':
+      {
+        const result = listLocalPath(parsed.path || '.');
+        await sendTextMessage(openId, result.success ? result.output : `❌ ${result.output}`);
+      }
       break;
 
     case 'run':
@@ -147,6 +199,9 @@ async function start() {
     const eventDispatcher = new lark.EventDispatcher({}).register({
       'im.message.receive_v1': async (data) => {
         await handleMessageEvent(data);
+      },
+      'card.action': async (data) => {
+        return await handleCardActionEvent(data);
       },
     });
 

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import xml2js from 'xml2js';
 import { sendTextMessage, sendMarkdownMessage, getAccessToken } from './wechat.js';
-import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession } from './iflow.js';
+import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession, listLocalPath } from './iflow.js';
 import { decryptMessage, verifySignature, encryptMessage, generateSignature } from './crypto.js';
 
 const app = express();
@@ -169,6 +169,17 @@ async function processCommand(content) {
     
     case 'sessions':
       await sendMarkdownMessage(USER_ID, getSessionsMessage());
+      break;
+    
+    case 'menu':
+      await sendMarkdownMessage(USER_ID, getHelpMessage());
+      break;
+
+    case 'ls':
+      {
+        const result = listLocalPath(parsed.path || '.');
+        await sendTextMessage(USER_ID, result.success ? result.output : `❌ ${result.output}`);
+      }
       break;
     
     case 'run':

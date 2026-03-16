@@ -84,6 +84,91 @@ export async function sendMarkdownMessage(openId, content) {
 }
 
 /**
+ * 发送飞书快捷菜单卡片
+ * @param {string} openId - 接收消息的用户 Open ID
+ */
+export async function sendMenuCard(openId) {
+  const card = {
+    config: {
+      wide_screen_mode: true
+    },
+    header: {
+      title: {
+        tag: 'plain_text',
+        content: 'iFlow 快捷菜单'
+      }
+    },
+    elements: [
+      {
+        tag: 'action',
+        actions: [
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '帮助 /help' },
+            type: 'primary',
+            value: { cmd: '/help' }
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '状态 /status' },
+            value: { cmd: '/status' }
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '会话 /sessions' },
+            value: { cmd: '/sessions' }
+          }
+        ]
+      },
+      {
+        tag: 'action',
+        actions: [
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '新会话 /new' },
+            value: { cmd: '/new' }
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '列 E:\\ /ls' },
+            value: { cmd: '/ls E:\\' }
+          },
+          {
+            tag: 'button',
+            text: { tag: 'plain_text', content: '列 Documents' },
+            value: { cmd: '/ls C:\\Users\\Administrator\\Documents' }
+          }
+        ]
+      }
+    ]
+  };
+
+  try {
+    const res = await client.im.message.create({
+      params: {
+        receive_id_type: 'open_id',
+      },
+      data: {
+        receive_id: openId,
+        msg_type: 'interactive',
+        content: JSON.stringify(card),
+      },
+    });
+
+    if (res.code === 0) {
+      console.log(`[Feishu] 菜单卡片发送成功 -> ${openId}`);
+      return true;
+    } else {
+      console.error('[Feishu] 菜单卡片发送失败', res.msg);
+      return false;
+    }
+  } catch (error) {
+    console.error('[Feishu] 发送菜单卡片异常', error.message);
+    return false;
+  }
+}
+
+/**
  * 将简单的 Markdown 文本转换为飞书富文本 (post) 格式
  * 支持: **粗体**, *斜体*, `代码`, 普通文本, 换行分段
  * @param {string} markdown
