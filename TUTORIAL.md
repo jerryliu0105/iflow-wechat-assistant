@@ -162,6 +162,12 @@ iFlow 会详细指导你完成配置，包括：
 - `帮我写一个 Python 脚本`
 - `/help`
 
+如果你希望让电脑“确定执行”本地脚本或做文件操作（不依赖 iFlow 猜测），可以使用这些命令（需配置 `IFLOW_LOCAL_ALLOWLIST` 白名单）：
+
+- `/exec python path/to/script.py`（仅支持 `python/py/node`）
+- `/open path/to/file_or_dir`
+- `/read path/to/file.txt`
+
 如果遇到问题，直接告诉 iFlow：
 
 > **我在企业微信发送消息后没有收到回复，请帮我排查问题**
