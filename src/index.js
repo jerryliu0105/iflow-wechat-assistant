@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import xml2js from 'xml2js';
 import { sendTextMessage, sendMarkdownMessage, getAccessToken } from './wechat.js';
-import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession, listLocalPath } from './iflow.js';
+import { executeIFlowCommand, executeAutomationCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession, listLocalPath } from './iflow.js';
 import { decryptMessage, verifySignature, encryptMessage, generateSignature } from './crypto.js';
 
 const app = express();
@@ -182,6 +182,17 @@ async function processCommand(content) {
       }
       break;
     
+    case 'exec':
+    case 'open_path':
+    case 'read_file':
+    case 'organize_file':
+    case 'modify_file':
+      {
+        const actionResult = await executeAutomationCommand(parsed);
+        await sendTextMessage(USER_ID, actionResult.success ? actionResult.output : `鉂?${actionResult.output}`);
+      }
+      break;
+
     case 'run':
       await sendTextMessage(USER_ID, `⏳ 正在执行: ${parsed.command}`);
       

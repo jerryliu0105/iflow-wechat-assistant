@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import lark from '@larksuiteoapi/node-sdk';
 import { sendTextMessage, sendMarkdownMessage, sendMenuCard, getClient } from './feishu.js';
-import { executeIFlowCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession, listLocalPath } from './iflow.js';
+import { executeIFlowCommand, executeAutomationCommand, parseCommand, getHelpMessage, getStatusMessage, getSessionsMessage, createNewSession, listLocalPath } from './iflow.js';
 
 // 飞书应用配置
 const APP_ID = process.env.FEISHU_APP_ID;
@@ -160,6 +160,17 @@ async function processCommand(content, openId) {
       {
         const result = listLocalPath(parsed.path || '.');
         await sendTextMessage(openId, result.success ? result.output : `❌ ${result.output}`);
+      }
+      break;
+
+    case 'exec':
+    case 'open_path':
+    case 'read_file':
+    case 'organize_file':
+    case 'modify_file':
+      {
+        const actionResult = await executeAutomationCommand(parsed);
+        await sendTextMessage(openId, actionResult.success ? actionResult.output : `鉂?${actionResult.output}`);
       }
       break;
 
